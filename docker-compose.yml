@@ -1,0 +1,121 @@
+version: '3'
+
+networks:
+  traefik:
+    external: true
+  laravel:
+  
+
+services:
+  site:
+    build:
+      context: .
+      dockerfile: nginx.dockerfile
+    container_name: nginx
+    volumes:
+      - ./src:/var/www/html:delegated
+      - ./logs:/var/log/nginx
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.site.rule=Host(`template.localhost`)"
+      - "traefik.http.routers.site.entrypoints=http"
+      - "traefik.docker.network=traefik"
+      - "traefik.http.services.site-service.loadbalancer.server.port=80"
+    depends_on:
+      - php
+      - redis
+      - pgsql
+      - mailhog
+    networks:
+      - laravel
+      - traefik
+
+  pgsql:
+    image: postgres:13
+    container_name: pgsql
+    restart: unless-stopped
+    tty: true
+    ports:
+      - 5433:5432
+    environment:
+      POSTGRES_USER: leo
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: dev
+    volumes:
+      - ./psql:/var/lib/postgresql/data
+    networks:
+      - laravel
+
+  php:
+    build:
+      context: .
+      dockerfile: php.dockerfile
+    container_name: php
+    volumes:
+      - ./src:/var/www/html:delegated
+    networks:
+      - laravel
+
+  redis:
+    image: redis:alpine
+    container_name: redis
+    restart: unless-stopped
+    ports:
+      - 6379:6379
+    networks:
+      - laravel
+
+  composer:
+    build:
+      context: .
+      dockerfile: composer.dockerfile
+    container_name: composer
+    volumes:
+      - ./src:/var/www/html
+    working_dir: /var/www/html
+    depends_on:
+      - php
+    user: laravel
+    entrypoint: ['composer', '--ignore-platform-reqs']
+    networks:
+      - laravel
+
+  npm:
+    image: node:13.7
+    container_name: npm
+    volumes:
+      - ./src:/var/www/html
+    working_dir: /var/www/html
+    entrypoint: ['npm']
+    networks:
+      - laravel
+
+  artisan:
+    build:
+      context: .
+      dockerfile: php.dockerfile
+    container_name: artisan
+    volumes:
+      - ./src:/var/www/html:delegated
+    depends_on:
+      - pgsql
+    working_dir: /var/www/html
+    user: laravel
+    entrypoint: ['php', '/var/www/html/artisan']
+    networks:
+      - laravel
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: mailhog
+    ports:
+      - 1025:1025
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.mailhog.rule=Host(`mail.template.localhost`)"
+      - "traefik.http.routers.mailhog.entrypoints=http"
+      - "traefik.docker.network=traefik"
+      - "traefik.http.services.mailhog-service.loadbalancer.server.port=8025"
+    networks:
+      - laravel
+      - traefik
