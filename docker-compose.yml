@@ -35,16 +35,26 @@ services:
     container_name: pgsql
     restart: unless-stopped
     tty: true
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
+      # - "traefik.http.routers.pgsql.rule=Host(`pgsql.localhost`)"
+      - "traefik.tcp.routers.pgsql.rule=HostSNI(`*`)"
+      - "traefik.tcp.routers.pgsql.entrypoints=pgsql"
+      - "traefik.tcp.routers.pgsql.service=pgsql-svc"
+      - "traefik.tcp.services.pgsql-svc.loadbalancer.server.port=5432"
+      # - "traefik.tcp.routers.pgsql.rule=HostSNI(*)"
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: test
     ports:
       - 5433:5432
-    environment:
-      POSTGRES_USER: leo
-      POSTGRES_PASSWORD: secret
-      POSTGRES_DB: dev
     volumes:
-      - ./psql:/var/lib/postgresql/data
+      - ./psql/data:/var/lib/postgresql/data
     networks:
       - laravel
+      - traefik
 
   php:
     build:
