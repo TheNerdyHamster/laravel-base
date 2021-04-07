@@ -3,13 +3,18 @@ version: '3'
 networks:
   traefik:
     external: true
+  pgsql:
+    external: true
   laravel:
-  
+
+volumes:
+  pgsql:
+
 
 services:
   site:
     build:
-      context: .
+      context: ./build
       dockerfile: nginx.dockerfile
     container_name: nginx
     volumes:
@@ -24,47 +29,21 @@ services:
     depends_on:
       - php
       - redis
-      - pgsql
       - mailhog
-    networks:
-      - laravel
-      - traefik
-
-  pgsql:
-    image: postgres:13
-    container_name: pgsql
-    restart: unless-stopped
-    tty: true
-    labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=traefik"
-      # - "traefik.http.routers.pgsql.rule=Host(`pgsql.localhost`)"
-      - "traefik.tcp.routers.pgsql.rule=HostSNI(`*`)"
-      - "traefik.tcp.routers.pgsql.entrypoints=pgsql"
-      - "traefik.tcp.routers.pgsql.service=pgsql-svc"
-      - "traefik.tcp.services.pgsql-svc.loadbalancer.server.port=5432"
-      # - "traefik.tcp.routers.pgsql.rule=HostSNI(*)"
-    environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: test
-      POSTGRES_DB: test
-    ports:
-      - 5433:5432
-    volumes:
-      - ./psql/data:/var/lib/postgresql/data
     networks:
       - laravel
       - traefik
 
   php:
     build:
-      context: .
+      context: ./build
       dockerfile: php.dockerfile
     container_name: php
     volumes:
       - ./src:/var/www/html:delegated
     networks:
       - laravel
+      - pgsql
 
   redis:
     image: redis:alpine
@@ -72,46 +51,6 @@ services:
     restart: unless-stopped
     ports:
       - 6379:6379
-    networks:
-      - laravel
-
-  composer:
-    build:
-      context: .
-      dockerfile: composer.dockerfile
-    container_name: composer
-    volumes:
-      - ./src:/var/www/html
-    working_dir: /var/www/html
-    depends_on:
-      - php
-    user: laravel
-    entrypoint: ['composer', '--ignore-platform-reqs']
-    networks:
-      - laravel
-
-  npm:
-    image: node:13.7
-    container_name: npm
-    volumes:
-      - ./src:/var/www/html
-    working_dir: /var/www/html
-    entrypoint: ['npm']
-    networks:
-      - laravel
-
-  artisan:
-    build:
-      context: .
-      dockerfile: php.dockerfile
-    container_name: artisan
-    volumes:
-      - ./src:/var/www/html:delegated
-    depends_on:
-      - pgsql
-    working_dir: /var/www/html
-    user: laravel
-    entrypoint: ['php', '/var/www/html/artisan']
     networks:
       - laravel
 
